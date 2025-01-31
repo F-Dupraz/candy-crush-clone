@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_image.h>
 
 int game_is_running = 0;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
+SDL_Texture *main_texture = NULL;
 
 void destroy_window(void)
 {
@@ -73,14 +75,17 @@ void update()
 
 void render()
 {
-  SDL_SetRenderDrawColor(renderer, 10, 40, 50, 255);
   SDL_RenderClear(renderer);
+  // SDL_SetRenderDrawColor(renderer, 10, 40, 50, 255);
+  SDL_RenderTexture(renderer, main_texture, NULL, NULL);
   SDL_RenderPresent(renderer);
 }
 
 int main(int argc, char *argv[])
 {  
   game_is_running = create_window();
+
+  main_texture = IMG_LoadTexture(renderer, "./assets/main_ccc.png");
   
   while (game_is_running)
   {
