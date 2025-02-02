@@ -5,6 +5,15 @@
 #define MAX_GAME_OBJECTS 100
 
 int game_is_running = 0;
+
+typedef enum Game_states {
+  MAIN_MENU,
+  LEVELS_MENU,
+  PLAYING
+} Game_states;
+
+Game_states game_state = MAIN_MENU;
+
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 
@@ -19,27 +28,17 @@ typedef struct Game_object
   void (*go_handle_event)(SDL_Event*);
 } Game_object;
 
-void go_render(SDL_Renderer *renderer)
+void go_render(SDL_Renderer *renderer) {}
+void go_quit(void) {}
+void go_update(void) {}
+void go_handle_event(SDL_Event *event) {}
+
+void go_pb_render(SDL_Renderer *renderer)
 {
   SDL_FRect play_button_position = { (1080/2)-(485/2), (2*720/3)-(300/2), 485, 300 };
 
   SDL_SetTextureScaleMode(play_button_texture, SDL_SCALEMODE_NEAREST);
   SDL_RenderTexture(renderer, play_button_texture, NULL, &play_button_position);
-}
-
-void go_quit(void)
-{
-  // TODO
-}
-
-void go_update(void)
-{
-  // TODO
-}
-
-void go_handle_event(SDL_Event *event)
-{
-  // TODO
 }
 
 Game_object init_play_button(SDL_Renderer *renderer)
@@ -48,7 +47,7 @@ Game_object init_play_button(SDL_Renderer *renderer)
   play_button_texture = IMG_LoadTexture(renderer, play_button_path);
 
   Game_object play_button = {
-    .go_render = go_render,
+    .go_render = go_pb_render,
     .go_quit = go_quit,
     .go_update = go_update,
     .go_handle_event = go_handle_event,
@@ -106,7 +105,18 @@ int create_window(void)
   return 1;
 }
 
-void process_input()
+// --------------------------------------------------
+//  MAIN MENU STATE FUNCTIONS
+// --------------------------------------------------
+
+void main_menu_init(void)
+{
+  main_texture = IMG_LoadTexture(renderer, "./assets/main_ccc.png");
+
+  game_objects[game_object_count++] = init_play_button(renderer);
+}
+
+void main_menu_process_input()
 {
   SDL_Event event;
   while (SDL_PollEvent(&event))
@@ -124,13 +134,13 @@ void process_input()
   }
 }
 
-void update()
+void main_menu_update()
 {
   for(int i = 0; i < game_object_count; i++)
     game_objects[i].go_update();
 }
 
-void render()
+void main_menu_render()
 {
   SDL_RenderClear(renderer);
   SDL_RenderTexture(renderer, main_texture, NULL, NULL);
@@ -141,19 +151,73 @@ void render()
   SDL_RenderPresent(renderer);
 }
 
+// --------------------------------------------------
+//  GENERAL FUNCTIONS FOR EACH STATE
+// --------------------------------------------------
+
+void process_input()
+{
+  switch (game_state)
+  {
+    case MAIN_MENU:
+      main_menu_process_input();
+      break;
+    case LEVELS_MENU:
+      // levels_menu_process_input();
+      break;
+    case PLAYING:
+      // playing_process_input();
+      break;
+  }
+}
+
+void update_state()
+{
+  switch (game_state)
+  {
+    case MAIN_MENU:
+      main_menu_update();
+      break;
+    case LEVELS_MENU:
+      // levels_menu_update();
+      break;
+    case PLAYING:
+      // playing_update();
+      break;
+  }
+}
+
+void render_state()
+{
+  switch (game_state)
+  {
+    case MAIN_MENU:
+      main_menu_render();
+      break;
+    case LEVELS_MENU:
+      // levels_menu_render();
+      break;
+    case PLAYING:
+      // playing_render();
+      break;
+  }
+}
+
+// --------------------------------------------------
+//  MAIN GAME LOOP
+// --------------------------------------------------
+
 int main(int argc, char *argv[])
 {  
   game_is_running = create_window();
 
-  main_texture = IMG_LoadTexture(renderer, "./assets/main_ccc.png");
-
-  game_objects[game_object_count++] = init_play_button(renderer);
+  main_menu_init();
   
   while (game_is_running)
   {
     process_input();
-    update();
-    render();
+    update_state();
+    render_state();
   }
   
   destroy_window();
