@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_image.h>
+#include <SDL3_image/SDL_image.h>
 
 #define MAX_GAME_OBJECTS 100
 
@@ -17,8 +17,8 @@ Game_states game_state = MAIN_MENU;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 
-SDL_Texture *main_texture = NULL;
-SDL_Texture *play_button_texture = NULL;
+// SDL_Texture *main_texture = NULL;
+// SDL_Texture *play_button_texture = NULL;
 
 void main_menu_init();
 void main_menu_cleanup();
@@ -34,32 +34,38 @@ void levels_menu_render();
 
 typedef struct Game_object
 {
-  void (*go_quit)(void);
+  SDL_Texture *texture;
+  SDL_FRect dimensions;
+  SDL_FRect position;
+  void (*go_quit)(struct Game_object*);
   void (*go_update)(void);
-  void (*go_render)(SDL_Renderer*);
-  void (*go_handle_event)(SDL_Event*);
+  void (*go_render)(SDL_Renderer*, struct Game_object*);
+  void (*go_handle_event)(SDL_Event*, struct Game_object*);
 } Game_object;
 
-void go_render(SDL_Renderer *renderer) {}
-void go_quit(void) {}
-void go_update(void) {}
-void go_handle_event(SDL_Event *event) {}
+void go_render(SDL_Renderer *renderer, Game_object *self) {
+  if(self->texture == NULL)
+    return;
 
-void go_pb_render(SDL_Renderer *renderer)
-{
-  SDL_FRect play_button_dimensions = { 250, 190, 790, 270 };
-  SDL_FRect play_button_position = { (1080/2)-(320/2), (2*720/3)-(110/2), 320, 110 };
-
-  SDL_RenderTexture(renderer, play_button_texture, &play_button_dimensions, &play_button_position);
+  SDL_RenderTexture(renderer, self->texture, &self->dimensions, &self->position);
 }
 
-void go_pb_handle_event(SDL_Event *event)
+void go_quit(Game_object* self) {
+  if (self->texture != NULL) {
+    SDL_DestroyTexture(self->texture);
+    self->texture = NULL;
+  }
+}
+
+void go_update(void) {}
+void go_handle_event(SDL_Event *event, Game_object *self) {}
+
+void go_pb_handle_event(SDL_Event *event, Game_object *self)
 {
   if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
     SDL_FPoint point = { (float)event->button.x, (float)event->button.y };
-    SDL_FRect play_button_rect = { (1080/2)-(320/2), (2*720/3)-(110/2), 320, 110 };
 
-    if (SDL_PointInRectFloat(&point, &play_button_rect)) {
+    if (SDL_PointInRectFloat(&point, &self->position)) {
       game_state = LEVELS_MENU;
       levels_menu_init();
       main_menu_cleanup();
@@ -70,11 +76,11 @@ void go_pb_handle_event(SDL_Event *event)
 Game_object init_play_button(SDL_Renderer *renderer)
 {
   const char *play_button_path = "./assets/play_button.png";
-  play_button_texture = IMG_LoadTexture(renderer, play_button_path);
-  // SDL_SetTextureScaleMode(play_button_texture, SDL_SCALEMODE_NEAREST);
-
   Game_object play_button = {
-    .go_render = go_pb_render,
+    .texture = IMG_LoadTexture(renderer, play_button_path),
+    .dimensions = { 250, 190, 790, 270 },
+    .position = { (1080/2)-(320/2), (2*720/3)-(110/2), 320, 110 },
+    .go_render = go_render,
     .go_quit = go_quit,
     .go_update = go_update,
     .go_handle_event = go_pb_handle_event,
@@ -83,19 +89,14 @@ Game_object init_play_button(SDL_Renderer *renderer)
   return play_button;
 }
 
-void go_main_render(SDL_Renderer *renderer)
-{
-  SDL_RenderTexture(renderer, main_texture, NULL, NULL);
-}
-
 Game_object init_main_texture(SDL_Renderer *renderer)
 {
   const char *main_path = "./assets/main_ccc.png";
-  main_texture = IMG_LoadTexture(renderer, main_path);
-  SDL_SetTextureScaleMode(main_texture, SDL_SCALEMODE_NEAREST);
-
   Game_object main = {
-    .go_render = go_main_render,
+    .texture = IMG_LoadTexture(renderer, main_path),
+    .dimensions = { 0, 0, 1080, 720 },
+    .position = { 0, 0, 1080, 720 },
+    .go_render = go_render,
     .go_quit = go_quit,
     .go_update = go_update,
     .go_handle_event = go_handle_event,
@@ -110,7 +111,7 @@ Game_object game_objects[MAX_GAME_OBJECTS];
 void destroy_window(void)
 {
   for(int i = 0; i < game_object_count; i++)
-    game_objects[i].go_quit();
+    game_objects[i].go_quit(&game_objects[i]);
 
   if (renderer)
   {
@@ -141,6 +142,15 @@ int create_window(void)
     SDL_Quit();
     return 0;
   }
+
+  SDL_DisplayID display = SDL_GetPrimaryDisplay();
+  SDL_Rect bounds;
+  SDL_GetDisplayBounds(display, &bounds);
+
+  int posX = (bounds.w - 1080) / 2;
+  int posY = (bounds.h - 720) / 2;
+
+  SDL_SetWindowPosition(window, posX, posY);
 
   renderer = SDL_CreateRenderer(window, NULL);
   if(!renderer)
@@ -181,7 +191,7 @@ void main_menu_process_input()
     if(game_object_count == 0)
       continue;
     for (int i = 0; i < game_object_count; i++) {
-      game_objects[i].go_handle_event(&event);
+      game_objects[i].go_handle_event(&event, &game_objects[i]);
     }
   }
 }
@@ -197,25 +207,25 @@ void main_menu_render()
   SDL_RenderClear(renderer);
 
   for(int i = 0; i < game_object_count; i++)
-    game_objects[i].go_render(renderer);
+    game_objects[i].go_render(renderer, &game_objects[i]);
 
   SDL_RenderPresent(renderer);
 }
 
 void main_menu_cleanup()
 {
-  if (main_texture) {
-    SDL_DestroyTexture(main_texture);
-    main_texture = NULL;
-  }
+  // if (main_texture) {
+  //   SDL_DestroyTexture(main_texture);
+  //   main_texture = NULL;
+  // }
     
-  if (play_button_texture) {
-    SDL_DestroyTexture(play_button_texture);
-    play_button_texture = NULL;
-  }
+  // if (play_button_texture) {
+  //   SDL_DestroyTexture(play_button_texture);
+  //   play_button_texture = NULL;
+  // }
 
   for(int i = 0; i < game_object_count; i++)
-    game_objects[i].go_quit();
+    game_objects[i].go_quit(&game_objects[i]);
 
   game_object_count = 0;
 }
@@ -248,7 +258,7 @@ void levels_menu_process_input()
     if(game_object_count == 0)
       continue;
     for (int i = 0; i < game_object_count; i++) {
-      game_objects[i].go_handle_event(&event);
+      game_objects[i].go_handle_event(&event, &game_objects[i]);
     }
   }
 }
@@ -264,7 +274,7 @@ void levels_menu_render()
   SDL_RenderClear(renderer);
 
   for(int i = 0; i < game_object_count; i++)
-    game_objects[i].go_render(renderer);
+    game_objects[i].go_render(renderer, &game_objects[i]);
 
   SDL_RenderPresent(renderer);
 }
@@ -272,7 +282,7 @@ void levels_menu_render()
 void levels_menu_cleanup()
 {
   for(int i = 0; i < game_object_count; i++)
-    game_objects[i].go_quit();
+    game_objects[i].go_quit(&game_objects[i]);
 
   game_object_count = 0;
 }
