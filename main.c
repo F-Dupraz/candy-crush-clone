@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include "libs/cJSON.h"
 
 #define MAX_GAME_OBJECTS 100
 
@@ -19,6 +20,8 @@ SDL_Renderer *renderer = NULL;
 
 // SDL_Texture *main_texture = NULL;
 // SDL_Texture *play_button_texture = NULL;
+
+FILE *fp = NULL;
 
 void main_menu_init();
 void main_menu_cleanup();
@@ -237,6 +240,44 @@ void main_menu_cleanup()
 void levels_menu_init()
 {
   SDL_SetRenderDrawColor(renderer, 0, 0, 250, 250);
+
+  fp = fopen("./levels.json", "r");
+  
+  if (fp == NULL) { 
+    printf("Error: Unable to open the file.\n"); 
+    return; 
+  }
+
+  char buffer[10000];
+  int len = fread(buffer, 1, sizeof(buffer), fp);
+
+  if (len <= 0) { 
+    printf("Error: Unable to read the file.\n");
+    fclose(fp);
+    return; 
+  }
+
+  fclose(fp);
+
+  cJSON *json = cJSON_Parse(buffer);
+  if (json == NULL) { 
+    const char *error_ptr = cJSON_GetErrorPtr(); 
+    if (error_ptr != NULL) { 
+      printf("Error: %s\n", error_ptr); 
+    } 
+    cJSON_Delete(json); 
+    return; 
+  }
+
+  cJSON *all_levels = cJSON_GetObjectItemCaseSensitive(json, "all_levels");
+
+  if (cJSON_IsNumber(all_levels)) {
+    int valor = all_levels->valueint;
+
+    printf("El valor es: %d\n", valor);
+  }
+
+  cJSON_Delete(json);
   // game_objects[game_object_count++] = init_levels_menu_texture(renderer);
 }
 
