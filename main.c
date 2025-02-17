@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <math.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include "libs/cJSON.h"
@@ -70,8 +71,8 @@ void go_pb_handle_event(SDL_Event *event, Game_object *self)
 
     if (SDL_PointInRectFloat(&point, &self->position)) {
       game_state = LEVELS_MENU;
-      levels_menu_init();
       main_menu_cleanup();
+      levels_menu_init();
     }
   }
 }
@@ -94,7 +95,7 @@ Game_object init_play_button(SDL_Renderer *renderer)
 
 Game_object init_main_texture(SDL_Renderer *renderer)
 {
-  const char *main_path = "./assets/main_ccc.png";
+  const char *main_path = "./assets/candy_crush_clone.png";
   Game_object main = {
     .texture = IMG_LoadTexture(renderer, main_path),
     .dimensions = { 0, 0, 1080, 720 },
@@ -106,6 +107,38 @@ Game_object init_main_texture(SDL_Renderer *renderer)
   };
 
   return main;
+}
+
+Game_object init_level_button(SDL_Renderer *renderer, float width, float height)
+{
+  const char *level_path = "./assets/unfinished_level_button.png";
+  Game_object level_button = {
+    .texture = IMG_LoadTexture(renderer, level_path),
+    .dimensions = { 0, 0, 250, 250 },
+    .position = { width, height, 30, 30 },
+    .go_render = go_render,
+    .go_quit = go_quit,
+    .go_update = go_update,
+    .go_handle_event = go_handle_event,
+  };
+
+  return level_button;
+}
+
+Game_object init_playable_level_button(SDL_Renderer *renderer, float width, float height)
+{
+  const char *playable_level_path = "./assets/finished_level_button.png";
+  Game_object playable_level_button = {
+    .texture = IMG_LoadTexture(renderer, playable_level_path),
+    .dimensions = { 0, 0, 250, 250 },
+    .position = { width, height, 30, 30 },
+    .go_render = go_render,
+    .go_quit = go_quit,
+    .go_update = go_update,
+    .go_handle_event = go_handle_event,
+  };
+
+  return playable_level_button;
 }
 
 int game_object_count = 0;
@@ -217,16 +250,6 @@ void main_menu_render()
 
 void main_menu_cleanup()
 {
-  // if (main_texture) {
-  //   SDL_DestroyTexture(main_texture);
-  //   main_texture = NULL;
-  // }
-    
-  // if (play_button_texture) {
-  //   SDL_DestroyTexture(play_button_texture);
-  //   play_button_texture = NULL;
-  // }
-
   for(int i = 0; i < game_object_count; i++)
     game_objects[i].go_quit(&game_objects[i]);
 
@@ -239,7 +262,7 @@ void main_menu_cleanup()
 
 void levels_menu_init()
 {
-  SDL_SetRenderDrawColor(renderer, 0, 0, 250, 250);
+  game_objects[game_object_count++] = init_main_texture(renderer);
 
   fp = fopen("./levels.json", "r");
   
@@ -269,16 +292,44 @@ void levels_menu_init()
     return; 
   }
 
+  cJSON *playable_levels = cJSON_GetObjectItemCaseSensitive(json, "last_Level");
   cJSON *all_levels = cJSON_GetObjectItemCaseSensitive(json, "all_levels");
 
-  if (cJSON_IsNumber(all_levels)) {
-    int valor = all_levels->valueint;
+  int grid, all_levels_value, playable_levels_value;
 
-    printf("El valor es: %d\n", valor);
+  if (cJSON_IsNumber(all_levels)) {
+    playable_levels_value = playable_levels->valueint;
+    all_levels_value = all_levels->valueint;
+    grid = sqrt(all_levels_value) + 1;
+  }
+
+  float height = (720 / 2) / (grid / 2) + 100;
+  float width = (1080 / 4) / (grid / 2);
+  int remaining_playable = playable_levels_value + 1;
+  
+  for(int j = 0; j < grid; ++j)
+  {
+    if(j * grid >= all_levels_value)
+      break;
+    for(int k = 0; k < grid; ++k)
+    {
+      if((j * grid) + k >= all_levels_value)
+        break;
+      if(remaining_playable > 0)
+      {
+        game_objects[game_object_count++] = init_playable_level_button(renderer, width, height);
+        remaining_playable--;
+      }
+      else
+        game_objects[game_object_count++] = init_level_button(renderer, width, height);
+
+      width += 30 + ((915 / 2) / (grid / 2));
+    }
+    width = (1080 / 4) / (grid / 2);
+    height += 30 + ((620 / 4) / (grid / 2));
   }
 
   cJSON_Delete(json);
-  // game_objects[game_object_count++] = init_levels_menu_texture(renderer);
 }
 
 void levels_menu_process_input()
