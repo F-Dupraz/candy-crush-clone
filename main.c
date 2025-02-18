@@ -19,10 +19,29 @@ Game_states game_state = MAIN_MENU;
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 
-// SDL_Texture *main_texture = NULL;
-// SDL_Texture *play_button_texture = NULL;
-
 FILE *fp = NULL;
+
+SDL_Cursor* handCursor;
+SDL_Cursor* arrowCursor;
+
+void init_cursors() {
+  handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_POINTER);
+  arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_DEFAULT);
+}
+
+void cleanup_cursors() {
+  SDL_DestroyCursor(handCursor);
+  SDL_DestroyCursor(arrowCursor);
+}
+
+int isMouseOverButton(int mouseX, int mouseY, int buttonX, int buttonY, int buttonWidth, int buttonHeight)
+{
+  if((mouseX >= buttonX && mouseX <= buttonX + buttonWidth &&
+    mouseY >= buttonY && mouseY <= buttonY + buttonHeight))
+    return 1;
+  else 
+    return 0;
+}
 
 void main_menu_init();
 void main_menu_cleanup();
@@ -38,6 +57,7 @@ void levels_menu_render();
 
 typedef struct Game_object
 {
+  uint_least8_t id;
   SDL_Texture *texture;
   SDL_FRect dimensions;
   SDL_FRect position;
@@ -66,14 +86,26 @@ void go_handle_event(SDL_Event *event, Game_object *self) {}
 
 void go_pb_handle_event(SDL_Event *event, Game_object *self)
 {
-  if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
-    SDL_FPoint point = { (float)event->button.x, (float)event->button.y };
+  SDL_FPoint point;
 
-    if (SDL_PointInRectFloat(&point, &self->position)) {
-      game_state = LEVELS_MENU;
-      main_menu_cleanup();
-      levels_menu_init();
-    }
+  switch (event->type) {
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+      point.x = (float)event->button.x;
+      point.y = (float)event->button.y;
+      if (SDL_PointInRectFloat(&point, &self->position)) {
+        game_state = LEVELS_MENU;
+        main_menu_cleanup();
+        levels_menu_init();
+      }
+      break;
+    case SDL_EVENT_MOUSE_MOTION:
+      point.x = (float)event->motion.x;
+      point.y = (float)event->motion.y;
+      if (SDL_PointInRectFloat(&point, &self->position))
+        SDL_SetCursor(handCursor);
+      else
+        SDL_SetCursor(arrowCursor);
+      break;
   }
 }
 
@@ -81,6 +113,7 @@ Game_object init_play_button(SDL_Renderer *renderer)
 {
   const char *play_button_path = "./assets/play_button.png";
   Game_object play_button = {
+    .id = 0,
     .texture = IMG_LoadTexture(renderer, play_button_path),
     .dimensions = { 250, 190, 790, 270 },
     .position = { (1080/2)-(320/2), (2*720/3)-(110/2), 320, 110 },
@@ -97,6 +130,7 @@ Game_object init_main_texture(SDL_Renderer *renderer)
 {
   const char *main_path = "./assets/candy_crush_clone.png";
   Game_object main = {
+    .id = 1,
     .texture = IMG_LoadTexture(renderer, main_path),
     .dimensions = { 0, 0, 1080, 720 },
     .position = { 0, 0, 1080, 720 },
@@ -109,10 +143,11 @@ Game_object init_main_texture(SDL_Renderer *renderer)
   return main;
 }
 
-Game_object init_level_button(SDL_Renderer *renderer, float width, float height)
+Game_object init_level_button(SDL_Renderer *renderer, float width, float height, uint_least8_t level_id)
 {
   const char *level_path = "./assets/unfinished_level_button.png";
   Game_object level_button = {
+    .id = level_id,
     .texture = IMG_LoadTexture(renderer, level_path),
     .dimensions = { 0, 0, 250, 250 },
     .position = { width, height, 30, 30 },
@@ -125,17 +160,43 @@ Game_object init_level_button(SDL_Renderer *renderer, float width, float height)
   return level_button;
 }
 
-Game_object init_playable_level_button(SDL_Renderer *renderer, float width, float height)
+void go_pl_handle_event(SDL_Event *event, Game_object *self) {
+  SDL_FPoint point;
+
+  switch (event->type) {
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+      point.x = (float)event->button.x;
+      point.y = (float)event->button.y;
+      if (SDL_PointInRectFloat(&point, &self->position)) {
+        printf("Clicked on level button: %d\n", self->id);
+        // game_state = PLAYING;
+        // levels_menu_cleanup();
+        // playing_init();
+      }
+      break;
+    case SDL_EVENT_MOUSE_MOTION:
+      point.x = (float)event->motion.x;
+      point.y = (float)event->motion.y;
+      if (SDL_PointInRectFloat(&point, &self->position))
+        SDL_SetCursor(handCursor);
+      else
+        SDL_SetCursor(arrowCursor);
+      break;
+  }
+}
+
+Game_object init_playable_level_button(SDL_Renderer *renderer, float width, float height, uint_least8_t level_id)
 {
   const char *playable_level_path = "./assets/finished_level_button.png";
   Game_object playable_level_button = {
+    .id = level_id,
     .texture = IMG_LoadTexture(renderer, playable_level_path),
     .dimensions = { 0, 0, 250, 250 },
     .position = { width, height, 30, 30 },
     .go_render = go_render,
     .go_quit = go_quit,
     .go_update = go_update,
-    .go_handle_event = go_handle_event,
+    .go_handle_event = go_pl_handle_event,
   };
 
   return playable_level_button;
@@ -149,6 +210,16 @@ void destroy_window(void)
   for(int i = 0; i < game_object_count; i++)
     game_objects[i].go_quit(&game_objects[i]);
 
+  if (handCursor)
+  {
+    SDL_DestroyCursor(handCursor);
+    handCursor = NULL;
+  }
+  if (arrowCursor)
+  {
+    SDL_DestroyCursor(arrowCursor);
+    arrowCursor = NULL;
+  }
   if (renderer)
   {
     SDL_DestroyRenderer(renderer);
@@ -187,6 +258,8 @@ int create_window(void)
   int posY = (bounds.h - 720) / 2;
 
   SDL_SetWindowPosition(window, posX, posY);
+
+  init_cursors();
 
   renderer = SDL_CreateRenderer(window, NULL);
   if(!renderer)
@@ -306,6 +379,7 @@ void levels_menu_init()
   float height = (720 / 2) / (grid / 2) + 100;
   float width = (1080 / 4) / (grid / 2);
   int remaining_playable = playable_levels_value + 1;
+  uint_least8_t level_id = 0;
   
   for(int j = 0; j < grid; ++j)
   {
@@ -317,12 +391,13 @@ void levels_menu_init()
         break;
       if(remaining_playable > 0)
       {
-        game_objects[game_object_count++] = init_playable_level_button(renderer, width, height);
+        game_objects[game_object_count++] = init_playable_level_button(renderer, width, height, level_id);
         remaining_playable--;
       }
       else
-        game_objects[game_object_count++] = init_level_button(renderer, width, height);
+        game_objects[game_object_count++] = init_level_button(renderer, width, height, level_id);
 
+      level_id++;
       width += 30 + ((915 / 2) / (grid / 2));
     }
     width = (1080 / 4) / (grid / 2);
