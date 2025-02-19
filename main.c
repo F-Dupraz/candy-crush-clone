@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include "libs/cJSON.h"
 
 #define MAX_GAME_OBJECTS 250
-#define BOARD_SIZE 9
+#define BOARD_SIZE 10
 
 int game_is_running = 0;
 
@@ -224,6 +225,25 @@ Game_object init_background_square(SDL_Renderer *renderer, float width, float he
   };
 
   return background_square;
+}
+
+Game_object init_candy(SDL_Renderer *renderer, float width, float height, uint_least8_t candy_id, uint_least8_t name)
+{
+  char candy_path[25];
+  snprintf(candy_path, sizeof(candy_path), "./assets/%d_candy.png", name);
+  
+  Game_object candy = {
+    .id = candy_id,
+    .texture = IMG_LoadTexture(renderer, candy_path),
+    .dimensions = { 0, 0, 500, 500 },
+    .position = { width, height, 50, 50 },
+    .go_render = go_render,
+    .go_quit = go_quit,
+    .go_update = go_update,
+    .go_handle_event = go_handle_event,
+  };
+
+  return candy;
 }
 
 int game_object_count = 0;
@@ -576,18 +596,21 @@ void playing_init(uint_least8_t level_id)
       }
     }
 
-  float initial_x = (1080/2) - ((BOARD_SIZE + 1) * 50) / 2;
-  float initial_y = ((720/2) - ((BOARD_SIZE + 1) * 50) / 2) + 50;
+    float initial_x = (1080/2) - (BOARD_SIZE * 50) / 2;
+    float initial_y = ((720/2) - (BOARD_SIZE * 50) / 2) + 50;
 
-  for(j = 0; j <= BOARD_SIZE; j++)
+    for(j = 0; j < BOARD_SIZE; j++)
     {
-      for(k = 0; k <= BOARD_SIZE; k++)
+      for(k = 0; k < BOARD_SIZE; k++)
       {
         if(board[j][k] != 0)
+        {
           game_objects[game_object_count++] = init_background_square(renderer, initial_x, initial_y);
+          game_objects[game_object_count++] = init_candy(renderer, initial_x, initial_y, board[j][k], board[j][k]);
+        }
         initial_x += 50;
       }
-      initial_x = (1080/2) - ((BOARD_SIZE + 1) * 50) / 2;
+      initial_x = (1080/2) - (BOARD_SIZE* 50) / 2;
       initial_y += 50;
     }
   }
