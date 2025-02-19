@@ -112,8 +112,8 @@
       "targets": [
         {
           "type": "remove",
-          "candie": 2,
-          "times": 30
+          "candy": 2,
+          "amount": 30
         }
       ],
       "board": [
@@ -135,7 +135,7 @@
         {
           "type": "remove",
           "candy": 3,
-          "times": 30
+          "amount": 30
         }
       ],
       "board": [
@@ -203,7 +203,7 @@
         {
           "type": "remove",
           "candy": 1,
-          "times": 25
+          "amount": 25
         }
       ],
       "board": [

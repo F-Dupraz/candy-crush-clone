@@ -5,7 +5,8 @@
 #include <SDL3_image/SDL_image.h>
 #include "libs/cJSON.h"
 
-#define MAX_GAME_OBJECTS 100
+#define MAX_GAME_OBJECTS 250
+#define BOARD_SIZE 9
 
 int game_is_running = 0;
 
@@ -152,12 +153,12 @@ Game_object init_main_texture(SDL_Renderer *renderer)
 
 Game_object init_level_button(SDL_Renderer *renderer, float width, float height, uint_least8_t level_id)
 {
-  const char *level_path = "./assets/unfinished_level_button.png";
+  const char *level_path = "./assets/unfinished_level.png";
   Game_object level_button = {
     .id = level_id,
     .texture = IMG_LoadTexture(renderer, level_path),
-    .dimensions = { 0, 0, 250, 250 },
-    .position = { width, height, 30, 30 },
+    .dimensions = { 0, 0, 50, 50 },
+    .position = { width, height, 50, 50 },
     .go_render = go_render,
     .go_quit = go_quit,
     .go_update = go_update,
@@ -193,12 +194,12 @@ void go_pl_handle_event(SDL_Event *event, Game_object *self) {
 
 Game_object init_playable_level_button(SDL_Renderer *renderer, float width, float height, uint_least8_t level_id)
 {
-  const char *playable_level_path = "./assets/finished_level_button.png";
+  const char *playable_level_path = "./assets/finished_level.png";
   Game_object playable_level_button = {
     .id = level_id,
     .texture = IMG_LoadTexture(renderer, playable_level_path),
-    .dimensions = { 0, 0, 250, 250 },
-    .position = { width, height, 30, 30 },
+    .dimensions = { 0, 0, 50, 50 },
+    .position = { width, height, 50, 50 },
     .go_render = go_render,
     .go_quit = go_quit,
     .go_update = go_update,
@@ -206,6 +207,23 @@ Game_object init_playable_level_button(SDL_Renderer *renderer, float width, floa
   };
 
   return playable_level_button;
+}
+
+Game_object init_background_square(SDL_Renderer *renderer, float width, float height)
+{
+  const char *background_square_path = "./assets/background_square.png";
+  Game_object background_square = {
+    .id = 0,
+    .texture = IMG_LoadTexture(renderer, background_square_path),
+    .dimensions = { 0, 0, 250, 250 },
+    .position = { width, height, 50, 50 },
+    .go_render = go_render,
+    .go_quit = go_quit,
+    .go_update = go_update,
+    .go_handle_event = go_handle_event,
+  };
+
+  return background_square;
 }
 
 int game_object_count = 0;
@@ -404,10 +422,10 @@ void levels_menu_init()
         game_objects[game_object_count++] = init_level_button(renderer, width, height, level_id);
 
       level_id++;
-      width += 30 + ((915 / 2) / (grid / 2));
+      width += ((995 / 2) / (grid / 2));
     }
     width = (1080 / 4) / (grid / 2);
-    height += 30 + ((620 / 4) / (grid / 2));
+    height += 50 + ((590 / 4) / (grid / 2));
   }
 
   cJSON_Delete(json);
@@ -469,8 +487,6 @@ void playing_init(uint_least8_t level_id)
   game_objects[game_object_count++] = init_main_texture(renderer);
   SDL_SetCursor(arrowCursor);
 
-  printf("Level id: %d\n", level_id);
-
   fp = fopen("./levels.json", "r");
   
   if (fp == NULL) { 
@@ -504,13 +520,75 @@ void playing_init(uint_least8_t level_id)
   cJSON *my_level;
 
   if (cJSON_IsArray(levels))
-  {
     my_level = cJSON_DetachItemFromArray(levels, level_id);
-    if (my_level != NULL)
+
+  cJSON *my_target, *moves_item, *target_item, *board_item_row, *board_item_column;
+  int moves = 0, target_score = 0, target_candy = 0, target_amount = 0, score = 0, j = 0, k = 0;
+  int board[BOARD_SIZE][BOARD_SIZE];
+
+  if(cJSON_IsObject(my_level))
+  {
+    moves_item = cJSON_GetObjectItemCaseSensitive(my_level, "moves");
+    target_item = cJSON_GetObjectItemCaseSensitive(my_level, "targets");
+    board_item_row = cJSON_GetObjectItemCaseSensitive(my_level, "board");
+
+    if(cJSON_IsNumber(moves_item))
+      moves = moves_item->valueint;
+      
+    if(cJSON_IsArray(target_item))
     {
-      char *string = cJSON_Print(my_level);
-      printf("%s\n", string);
-      free(string);
+      cJSON_ArrayForEach(my_target, target_item)
+      {
+        if(cJSON_IsObject(my_target))
+        {
+          char *target_type = cJSON_DetachItemFromObjectCaseSensitive(my_target, "type")->valuestring;
+          if(strcmp(target_type, "score") == 0)
+          {
+            target_score = cJSON_DetachItemFromObjectCaseSensitive(my_target, "value")->valueint;
+            continue;
+          }
+          if(strcmp(target_type, "remove") == 0)
+          {
+            target_candy = cJSON_DetachItemFromObjectCaseSensitive(my_target, "candy")->valueint;
+            target_amount = cJSON_DetachItemFromObjectCaseSensitive(my_target, "amount")->valueint;
+            continue;
+          }
+        }
+      }
+    }
+    if(cJSON_IsArray(board_item_row))
+    {
+      cJSON_ArrayForEach(board_item_row, board_item_row)
+      {
+        if(cJSON_IsArray(board_item_row))
+        {
+          cJSON_ArrayForEach(board_item_column, board_item_row)
+          {
+            if(cJSON_IsNumber(board_item_column))
+            {
+              board[j][k] = board_item_column->valueint;
+              k++;
+            }
+          }
+          k = 0;
+          j++;
+        }
+      }
+    }
+
+  float initial_x = (1080/2) - ((BOARD_SIZE + 1) * 50) / 2;
+  float initial_y = ((720/2) - ((BOARD_SIZE + 1) * 50) / 2) + 50;
+
+  for(j = 0; j <= BOARD_SIZE; j++)
+    {
+      for(k = 0; k <= BOARD_SIZE; k++)
+      {
+        if(board[j][k] != 0)
+          game_objects[game_object_count++] = init_background_square(renderer, initial_x, initial_y);
+        initial_x += 50;
+      }
+      initial_x = (1080/2) - ((BOARD_SIZE + 1) * 50) / 2;
+      initial_y += 50;
     }
   }
 
