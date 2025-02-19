@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <math.h>
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -54,6 +55,12 @@ void levels_menu_cleanup();
 void levels_menu_process_input();
 void levels_menu_update();
 void levels_menu_render();
+
+void playing_init(uint_least8_t level_id);
+void playing_cleanup();
+void playing_process_input();
+void playing_update();
+void playing_render();
 
 typedef struct Game_object
 {
@@ -168,10 +175,9 @@ void go_pl_handle_event(SDL_Event *event, Game_object *self) {
       point.x = (float)event->button.x;
       point.y = (float)event->button.y;
       if (SDL_PointInRectFloat(&point, &self->position)) {
-        printf("Clicked on level button: %d\n", self->id);
-        // game_state = PLAYING;
-        // levels_menu_cleanup();
-        // playing_init();
+        game_state = PLAYING;
+        levels_menu_cleanup();
+        playing_init(self->id);
       }
       break;
     case SDL_EVENT_MOUSE_MOTION:
@@ -455,6 +461,110 @@ void levels_menu_cleanup()
 }
 
 // --------------------------------------------------
+//  PLAYING STATE FUNCTIONS
+// --------------------------------------------------
+
+void playing_init(uint_least8_t level_id)
+{
+  game_objects[game_object_count++] = init_main_texture(renderer);
+  SDL_SetCursor(arrowCursor);
+
+  printf("Level id: %d\n", level_id);
+
+  fp = fopen("./levels.json", "r");
+  
+  if (fp == NULL) { 
+    printf("Error: Unable to open the file.\n"); 
+    return; 
+  }
+
+  char buffer[10000];
+  int len = fread(buffer, 1, sizeof(buffer), fp);
+
+  if (len <= 0) { 
+    printf("Error: Unable to read the file.\n");
+    fclose(fp);
+    return; 
+  }
+
+  fclose(fp);
+
+  cJSON *json = cJSON_Parse(buffer);
+  if (json == NULL) { 
+    const char *error_ptr = cJSON_GetErrorPtr(); 
+    if (error_ptr != NULL) { 
+      printf("Error: %s\n", error_ptr); 
+    } 
+    cJSON_Delete(json); 
+    return; 
+  }
+
+  cJSON *levels = cJSON_GetObjectItemCaseSensitive(json, "levels");
+
+  cJSON *my_level;
+
+  if (cJSON_IsArray(levels))
+  {
+    my_level = cJSON_DetachItemFromArray(levels, level_id);
+    if (my_level != NULL)
+    {
+      char *string = cJSON_Print(my_level);
+      printf("%s\n", string);
+      free(string);
+    }
+  }
+
+  cJSON_Delete(json);
+}
+
+void playing_process_input()
+{
+  SDL_Event event;
+  while (SDL_PollEvent(&event))
+  {
+    switch (event.type)
+    {
+      case SDL_EVENT_QUIT:
+        game_is_running = 0;
+        break;
+      case SDL_EVENT_KEY_DOWN:
+        if (event.key.key == SDLK_ESCAPE)
+          game_is_running = 0;
+        break;
+    }
+    if(game_object_count == 0)
+      continue;
+    for (int i = 0; i < game_object_count; i++) {
+      game_objects[i].go_handle_event(&event, &game_objects[i]);
+    }
+  }
+}
+
+void playing_update()
+{
+  for(int i = 0; i < game_object_count; i++)
+    game_objects[i].go_update();
+}
+
+void playing_render()
+{
+  SDL_RenderClear(renderer);
+
+  for(int i = 0; i < game_object_count; i++)
+    game_objects[i].go_render(renderer, &game_objects[i]);
+
+  SDL_RenderPresent(renderer);
+}
+
+void playing_cleanup()
+{
+  for(int i = 0; i < game_object_count; i++)
+    game_objects[i].go_quit(&game_objects[i]);
+
+  game_object_count = 0;
+}
+
+// --------------------------------------------------
 //  GENERAL FUNCTIONS FOR EACH STATE
 // --------------------------------------------------
 
@@ -469,7 +579,7 @@ void process_input()
       levels_menu_process_input();
       break;
     case PLAYING:
-      // playing_process_input();
+      playing_process_input();
       break;
   }
 }
@@ -485,7 +595,7 @@ void update_state()
       levels_menu_update();
       break;
     case PLAYING:
-      // playing_update();
+      playing_update();
       break;
   }
 }
@@ -501,7 +611,7 @@ void render_state()
       levels_menu_render();
       break;
     case PLAYING:
-      // playing_render();
+      playing_render();
       break;
   }
 }
